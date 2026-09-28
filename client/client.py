@@ -11,23 +11,39 @@ load_dotenv()
 
 SERVER_URL = "http://localhost:8000"
 
-# Read NVIDIA Nemotron configuration from .env
-nvidia_base_url = os.getenv("base_url", "https://integrate.api.nvidia.com/v1")
-nemotron_api_key = os.getenv("nemotron_api_key") or os.getenv("NVIDIA_API_KEY") or os.getenv("OPENAI_API_KEY")
-model_name = os.getenv("model", "nvidia/nemotron-3-ultra-550b-a55b")
+# Read LLM provider configuration from .env (Supports NVIDIA NIM, OpenAI, Groq, OpenRouter, Ollama, etc.)
+llm_base_url = (
+    os.getenv("BASE_URL")
+    or os.getenv("base_url")
+    or os.getenv("NVIDIA_BASE_URL")
+    or "https://integrate.api.nvidia.com/v1"
+)
+llm_api_key = (
+    os.getenv("API_KEY")
+    or os.getenv("api_key")
+    or os.getenv("NVIDIA_API_KEY")
+    or os.getenv("nemotron_api_key")
+    or os.getenv("OPENAI_API_KEY")
+)
+model_name = (
+    os.getenv("MODEL")
+    or os.getenv("model")
+    or os.getenv("LLM_MODEL")
+    or "meta/llama-3.1-70b-instruct"
+)
 
 # Initialize Client LLM Agent
 client_llm = None
-if nemotron_api_key:
+if llm_api_key:
     try:
         from openai import OpenAI
         client_llm = OpenAI(
-            base_url=nvidia_base_url,
-            api_key=nemotron_api_key,
+            base_url=llm_base_url,
+            api_key=llm_api_key,
         )
-        print("🤖 [CLIENT AGENT] Initialized with NVIDIA Nemotron LLM credentials.")
+        print(f"🤖 [CLIENT AGENT] Initialized with LLM model '{model_name}'.")
     except Exception as e:
-        print(f"⚠️ [CLIENT AGENT] Could not initialize NVIDIA LLM: {e}")
+        print(f"⚠️ [CLIENT AGENT] Could not initialize LLM client: {e}")
 else:
     print("⚠️ [CLIENT AGENT] No API key found in .env. Will fall back to default agent choices.")
 

@@ -12,32 +12,48 @@ from sse_starlette.sse import EventSourceResponse
 # Load environment variables from .env
 load_dotenv()
 
-# Read NVIDIA Nemotron configuration from .env
-nvidia_base_url = os.getenv("base_url", "https://integrate.api.nvidia.com/v1")
-nemotron_api_key = os.getenv("nemotron_api_key") or os.getenv("NVIDIA_API_KEY") or os.getenv("OPENAI_API_KEY")
-model_name = os.getenv("model", "nvidia/nemotron-3-ultra-550b-a55b")
+# Read LLM provider configuration from .env (Supports NVIDIA NIM, OpenAI, Groq, OpenRouter, Ollama, etc.)
+llm_base_url = (
+    os.getenv("BASE_URL")
+    or os.getenv("base_url")
+    or os.getenv("NVIDIA_BASE_URL")
+    or "https://integrate.api.nvidia.com/v1"
+)
+llm_api_key = (
+    os.getenv("API_KEY")
+    or os.getenv("api_key")
+    or os.getenv("NVIDIA_API_KEY")
+    or os.getenv("nemotron_api_key")
+    or os.getenv("OPENAI_API_KEY")
+)
+model_name = (
+    os.getenv("MODEL")
+    or os.getenv("model")
+    or os.getenv("LLM_MODEL")
+    or "meta/llama-3.1-70b-instruct"
+)
 
-# Initialize OpenAI client with NVIDIA credentials
+# Initialize OpenAI-compatible LLM client
 llm_client = None
-if nemotron_api_key:
+if llm_api_key:
     try:
         from openai import OpenAI
         llm_client = OpenAI(
-            base_url=nvidia_base_url,
-            api_key=nemotron_api_key,
+            base_url=llm_base_url,
+            api_key=llm_api_key,
         )
-        print(f"✅ NVIDIA Nemotron LLM client initialized successfully!")
-        print(f"   Base URL: {nvidia_base_url}")
+        print(f"✅ LLM client initialized successfully!")
+        print(f"   Base URL: {llm_base_url}")
         print(f"   Model   : {model_name}")
     except Exception as e:
-        print(f"⚠️ Could not initialize NVIDIA Nemotron LLM client: {e}")
+        print(f"⚠️ Could not initialize LLM client: {e}")
 else:
     print("⚠️ No API key found in .env. LLM feature will use mock fallback responses.")
 
 # Initialize FastAPI application
 app = FastAPI(
-    title="NVIDIA Nemotron JSON-RPC Weather Agent",
-    description="A real Agent-to-Agent server supporting JSON-RPC 2.0 protocol, NVIDIA LLM queries, and Agent Discovery.",
+    title="JSON-RPC Weather Agent",
+    description="A real Agent-to-Agent server supporting JSON-RPC 2.0 protocol, LLM reasoning, and Agent Discovery.",
     version="1.0.0",
 )
 
@@ -78,12 +94,12 @@ def mock_get_forecast(city: str, days: int = 3) -> Dict[str, Any]:
 
 
 def ask_llm(prompt: str) -> Dict[str, Any]:
-    """Uses NVIDIA Nemotron LLM to answer agent queries or reason over data."""
+    """Uses LLM to answer agent queries or reason over data."""
     if not llm_client:
         return {
             "model": model_name,
             "status": "fallback",
-            "response": f"[Mock LLM Response] Query '{prompt}' processed. (Configure nemotron_api_key in .env to use live NVIDIA model).",
+            "response": f"[Mock LLM Response] Query '{prompt}' processed. (Configure API_KEY in .env to use live LLM model).",
         }
 
     try:
@@ -171,8 +187,8 @@ async def get_agent_card():
     """Provides metadata about this JSON-RPC enabled Agent."""
     return JSONResponse(
         content={
-            "name": "NVIDIANemotronWeatherAgent",
-            "description": "Agent-to-Agent weather and intelligence provider powered by NVIDIA Nemotron & JSON-RPC 2.0.",
+            "name": "A2AWeatherAgent",
+            "description": "Agent-to-Agent weather and intelligence provider powered by JSON-RPC 2.0 and LLM synthesis.",
             "version": "1.0.0",
             "protocol": "JSON-RPC 2.0",
             "llm_model": model_name,
@@ -344,7 +360,7 @@ async def stream_jsonrpc_weather(city: str):
             "data": json.dumps({
                 "jsonrpc": "2.0",
                 "method": "progress",
-                "params": {"step": 3, "status": "Running NVIDIA Nemotron LLM recommendation model..."},
+                "params": {"step": 3, "status": f"Running LLM recommendation model ({model_name})..."},
             }),
         }
         

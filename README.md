@@ -31,7 +31,7 @@ In multi-agent architectures, agents require structured mechanisms to negotiate 
 1. **Discovery**: Agents query `/.well-known/agent.json` (the Agent Card) to discover available endpoints, parameters, and tool interfaces dynamically.
 2. **RPC Requests**: Standardized JSON-RPC 2.0 request/response exchanges over HTTP POST for synchronous tool execution.
 3. **Telemetry & Streaming**: Progress updates pushed step-by-step to the client using Server-Sent Events (SSE).
-4. **LLM Synthesis**: Server-side tool execution combined with LLM inference (NVIDIA Nemotron via OpenAI-compatible SDK) to resolve complex user prompts.
+4. **LLM Synthesis**: Server-side tool execution combined with LLM inference (NVIDIA NIM, OpenAI, Groq, Ollama via OpenAI-compatible SDK) to resolve complex user prompts.
 
 ---
 
@@ -124,15 +124,32 @@ sequenceDiagram
 
 ## Configuration
 
-Create a `.env` file in the root directory:
+Create a `.env` file in the root directory (or copy from `.env.example`):
 
 ```env
+# Supported Base URLs:
+# - NVIDIA NIM:  https://integrate.api.nvidia.com/v1
+# - OpenAI:      https://api.openai.com/v1
+# - Groq:        https://api.groq.com/openai/v1
+# - OpenRouter:  https://openrouter.ai/api/v1
+# - Ollama:      http://localhost:11434/v1
+
 base_url="https://integrate.api.nvidia.com/v1"
-nemotron_api_key="YOUR_NVIDIA_API_KEY"
-model="nvidia/nemotron-3-ultra-550b-a55b"
+API_KEY="YOUR_API_KEY"
+model="meta/llama-3.1-70b-instruct"
 ```
 
-If `nemotron_api_key` is omitted, both client and server components will automatically use mock fallback handlers.
+If `api_key` (or `API_KEY`) is omitted, both client and server components will automatically use mock fallback handlers.
+
+### Supported LLM Providers & Models
+
+| Provider | Base URL (`base_url`) | Sample Model (`model`) | Key Env Var |
+|---|---|---|---|
+| **NVIDIA NIM** | `https://integrate.api.nvidia.com/v1` | `meta/llama-3.1-70b-instruct` or `nvidia/nemotron-4-340b-instruct` | `NVIDIA_API_KEY` / `API_KEY` |
+| **OpenAI** | `https://api.openai.com/v1` | `gpt-4o-mini` or `gpt-4o` | `OPENAI_API_KEY` / `API_KEY` |
+| **Groq** | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` | `API_KEY` |
+| **OpenRouter** | `https://openrouter.ai/api/v1` | `meta-llama/llama-3.1-70b-instruct` | `API_KEY` |
+| **Ollama (Local)** | `http://localhost:11434/v1` | `llama3` | `ollama` |
 
 ---
 
@@ -189,7 +206,7 @@ User Request: "What is the weather in Bangalore and what should I wear?"
       "wind_speed": "12 km/h"
     },
     "agent_reasoning": "For Bangalore's 26°C weather, lightweight cotton apparel is recommended.",
-    "model_used": "nvidia/nemotron-3-ultra-550b-a55b"
+    "model_used": "meta/llama-3.1-70b-instruct"
   },
   "id": "stream-req-1"
 }
@@ -225,11 +242,11 @@ SERVER AGENT REASONING & AI RECOMMENDATION:
 
 ```json
 {
-  "name": "NVIDIANemotronWeatherAgent",
-  "description": "Agent-to-Agent weather provider powered by NVIDIA Nemotron & JSON-RPC 2.0.",
+  "name": "A2AWeatherAgent",
+  "description": "Agent-to-Agent weather provider powered by JSON-RPC 2.0 & LLM reasoning.",
   "version": "1.0.0",
   "protocol": "JSON-RPC 2.0",
-  "llm_model": "nvidia/nemotron-3-ultra-550b-a55b",
+  "llm_model": "meta/llama-3.1-70b-instruct",
   "capabilities": {
     "jsonrpc_endpoint": {
       "endpoint": "/jsonrpc",
@@ -303,7 +320,7 @@ SERVER AGENT REASONING & AI RECOMMENDATION:
       "wind_speed": "10 km/h"
     },
     "agent_reasoning": "Clear skies at 22°C in Tokyo call for light jackets or casual outdoor wear.",
-    "model_used": "nvidia/nemotron-3-ultra-550b-a55b"
+    "model_used": "meta/llama-3.1-70b-instruct"
   },
   "id": 1
 }
