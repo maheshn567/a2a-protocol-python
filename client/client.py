@@ -134,11 +134,15 @@ def display_beautiful_log(query: str, city: str, rpc_response: dict):
         
         if "weather_data" in res:
             w = res["weather_data"]
+            if w.get("country"):
+                print(f"🌍 Location          : {w.get('city')}, {w.get('country')}")
             print("🌡️ Weather Metrics      :")
             print(f"   • Temperature       : {w.get('temperature')}")
             print(f"   • Condition         : {w.get('condition')}")
             print(f"   • Humidity          : {w.get('humidity')}")
             print(f"   • Wind Speed        : {w.get('wind_speed')}")
+            if w.get("source"):
+                print(f"   • Data Source       : {w.get('source')}")
         elif "temperature" in res:
             print("🌡️ Weather Metrics      :")
             print(f"   • Temperature       : {res.get('temperature')}")

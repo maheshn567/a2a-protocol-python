@@ -4,6 +4,7 @@ import os
 import random
 import re
 from typing import Any, Dict, Optional
+import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -59,38 +60,134 @@ app = FastAPI(
 
 
 # ------------------------------------------------------------------
-# BACKEND TOOLS & FUNCTIONS FOR JSON-RPC AGENT
+# REAL WEATHER API & TOOLS (OPEN-METEO INTEGRATION)
 # ------------------------------------------------------------------
-def mock_get_weather(city: str) -> Dict[str, Any]:
-    """Mock tool to fetch current weather for a city."""
-    temp = random.randint(18, 35)
-    conditions = ["Sunny", "Partly Cloudy", "Rainy", "Clear Sky", "Overcast"]
-    return {
-        "city": city.title(),
-        "temperature": f"{temp}°C",
-        "condition": random.choice(conditions),
-        "humidity": f"{random.randint(40, 80)}%",
-        "wind_speed": f"{random.randint(5, 25)} km/h",
-    }
+WMO_WEATHER_CODES = {
+    0: "Clear Sky",
+    1: "Mainly Clear", 2: "Partly Cloudy", 3: "Overcast",
+    45: "Foggy", 48: "Depositing Rime Fog",
+    51: "Light Drizzle", 53: "Moderate Drizzle", 55: "Dense Drizzle",
+    61: "Slight Rain", 63: "Moderate Rain", 65: "Heavy Rain",
+    71: "Slight Snow", 73: "Moderate Snow", 75: "Heavy Snow",
+    80: "Slight Rain Showers", 81: "Moderate Rain Showers", 82: "Violent Rain Showers",
+    95: "Thunderstorm", 96: "Thunderstorm with Slight Hail", 99: "Thunderstorm with Heavy Hail"
+}
 
 
-def mock_get_forecast(city: str, days: int = 3) -> Dict[str, Any]:
-    """Mock tool to fetch multi-day weather forecast."""
-    days = min(max(1, days), 7)
-    conditions = ["Sunny", "Partly Cloudy", "Rainy", "Clear Sky"]
-    forecasts = []
-    for day in range(1, days + 1):
-        temp = random.randint(18, 35)
-        forecasts.append({
-            "day": f"Day {day}",
+def get_city_coordinates(city: str) -> Optional[Dict[str, float]]:
+    """Geocodes city name to latitude and longitude using Open-Meteo Geocoding API."""
+    try:
+        url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1&language=en&format=json"
+        response = httpx.get(url, timeout=10.0)
+        response.raise_for_status()
+        data = response.json()
+        if data.get("results"):
+            location = data["results"][0]
+            return {
+                "latitude": location["latitude"],
+                "longitude": location["longitude"],
+                "name": location.get("name", city),
+                "country": location.get("country", ""),
+            }
+    except Exception as e:
+        print(f"⚠️ Geocoding error for '{city}': {e}")
+    return None
+
+
+def get_weather(city: str) -> Dict[str, Any]:
+    """Fetches REAL current weather for a city using Open-Meteo API."""
+    coords = get_city_coordinates(city)
+    if not coords:
+        # Fallback to simulated weather if geocoding yields no results
+        return {
+            "city": city.title(),
+            "temperature": "22°C",
+            "condition": "Partly Cloudy",
+            "humidity": "55%",
+            "wind_speed": "12 km/h",
+            "source": "Fallback Generator",
+        }
+
+    try:
+        lat, lon = coords["latitude"], coords["longitude"]
+        url = (
+            f"https://api.open-meteo.com/v1/forecast?"
+            f"latitude={lat}&longitude={lon}&current_weather=true&hourly=relative_humidity_2m"
+        )
+        response = httpx.get(url, timeout=10.0)
+        response.raise_for_status()
+        data = response.json()
+        current = data.get("current_weather", {})
+
+        weather_code = current.get("weathercode", 0)
+        condition = WMO_WEATHER_CODES.get(weather_code, "Partly Cloudy")
+        temp = current.get("temperature", 22)
+        wind = current.get("windspeed", 10)
+        
+        humidity_list = data.get("hourly", {}).get("relative_humidity_2m", [])
+        humidity = f"{humidity_list[0]}%" if humidity_list else "60%"
+
+        return {
+            "city": coords["name"],
+            "country": coords["country"],
             "temperature": f"{temp}°C",
-            "condition": random.choice(conditions),
-        })
-    return {
-        "city": city.title(),
-        "days": days,
-        "forecast": forecasts,
-    }
+            "condition": condition,
+            "humidity": humidity,
+            "wind_speed": f"{wind} km/h",
+            "source": "Open-Meteo Live API",
+        }
+    except Exception as e:
+        print(f"⚠️ Open-Meteo API error for '{city}': {e}")
+        return {
+            "city": city.title(),
+            "temperature": "22°C",
+            "condition": "Partly Cloudy",
+            "humidity": "55%",
+            "wind_speed": "12 km/h",
+            "source": "Fallback Generator",
+        }
+
+
+def get_forecast(city: str, days: int = 3) -> Dict[str, Any]:
+    """Fetches REAL multi-day weather forecast using Open-Meteo API."""
+    days = min(max(1, days), 7)
+    coords = get_city_coordinates(city)
+    if not coords:
+        return {"city": city.title(), "days": days, "forecast": [], "source": "Fallback Generator"}
+
+    try:
+        lat, lon = coords["latitude"], coords["longitude"]
+        url = (
+            f"https://api.open-meteo.com/v1/forecast?"
+            f"latitude={lat}&longitude={lon}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto"
+        )
+        response = httpx.get(url, timeout=10.0)
+        response.raise_for_status()
+        data = response.json()
+        daily = data.get("daily", {})
+
+        times = daily.get("time", [])
+        max_temps = daily.get("temperature_2m_max", [])
+        codes = daily.get("weathercode", [])
+
+        forecasts = []
+        for i in range(min(days, len(times))):
+            forecasts.append({
+                "date": times[i],
+                "temperature_max": f"{max_temps[i]}°C",
+                "condition": WMO_WEATHER_CODES.get(codes[i], "Partly Cloudy"),
+            })
+
+        return {
+            "city": coords["name"],
+            "country": coords["country"],
+            "days": days,
+            "forecast": forecasts,
+            "source": "Open-Meteo Live API",
+        }
+    except Exception as e:
+        print(f"⚠️ Forecast error for '{city}': {e}")
+        return {"city": city.title(), "days": days, "forecast": [], "source": "Fallback Generator"}
 
 
 def ask_llm(prompt: str) -> Dict[str, Any]:
@@ -136,7 +233,7 @@ def ask_llm(prompt: str) -> Dict[str, Any]:
 def ask_agent(query: str, city: Optional[str] = None) -> Dict[str, Any]:
     """
     Autonomous Agent Task Handler.
-    Receives user query, executes weather tools, reasons using NVIDIA Nemotron LLM,
+    Receives user query, executes weather tools, reasons using LLM,
     and returns a full structured Agent-to-Agent JSON completion payload.
     """
     # 1. Infer city if not provided
@@ -147,8 +244,8 @@ def ask_agent(query: str, city: Optional[str] = None) -> Dict[str, Any]:
         else:
             city = "Bangalore"
 
-    # 2. Execute weather tool
-    weather_data = mock_get_weather(city)
+    # 2. Execute real weather tool
+    weather_data = get_weather(city)
 
     # 3. LLM Synthesis
     prompt = (
@@ -163,7 +260,7 @@ def ask_agent(query: str, city: Optional[str] = None) -> Dict[str, Any]:
         "task_status": "COMPLETED",
         "query": query,
         "city": city,
-        "tool_executed": "mock_get_weather",
+        "tool_executed": "get_weather",
         "weather_data": weather_data,
         "agent_reasoning": llm_output.get("response") or llm_output.get("error_details"),
         "model_used": model_name,
@@ -172,8 +269,8 @@ def ask_agent(query: str, city: Optional[str] = None) -> Dict[str, Any]:
 
 # Registry of available JSON-RPC methods
 RPC_METHODS = {
-    "get_weather": mock_get_weather,
-    "get_forecast": mock_get_forecast,
+    "get_weather": get_weather,
+    "get_forecast": get_forecast,
     "ask_llm": ask_llm,
     "ask_agent": ask_agent,
 }
@@ -364,7 +461,7 @@ async def stream_jsonrpc_weather(city: str):
             }),
         }
         
-        weather_result = mock_get_weather(city_name)
+        weather_result = await asyncio.to_thread(get_weather, city_name)
         prompt = f"Provide clothing recommendations for {city_name} weather: {json.dumps(weather_result)}"
         llm_out = await asyncio.to_thread(ask_llm, prompt)
 

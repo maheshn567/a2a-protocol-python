@@ -40,6 +40,7 @@ In multi-agent architectures, agents require structured mechanisms to negotiate 
 - **Standardized Discovery**: Dynamic capability publication via `/.well-known/agent.json`.
 - **JSON-RPC 2.0 Specification**: Native support for request framing, method routing, parameter binding, and standard error responses.
 - **Progress Streaming**: Real-time event streaming over SSE (`jsonrpc_notification`) to track background task states.
+- **Live Real-World Weather API**: Open-Meteo integration for global geocoding and live weather & multi-day forecast metrics.
 - **Client Parameter Extraction**: LLM-assisted prompt parsing on the client to extract target arguments prior to RPC calls.
 - **Graceful Fallbacks**: Automated fallback logic when LLM credentials are not configured or external services time out.
 - **Educational Guide**: Includes `simple_a2a_learning_guide.md` explaining core A2A messaging patterns.
@@ -54,7 +55,7 @@ sequenceDiagram
     participant User
     participant ClientAgent as Client Agent
     participant ServerAgent as Server Agent (FastAPI)
-    participant LLM as NVIDIA Nemotron LLM
+    participant LLM as LLM Model (Groq / NIM / OpenAI)
 
     User->>ClientAgent: Query Prompt ("Weather in Bangalore")
     ClientAgent->>ServerAgent: GET /.well-known/agent.json
@@ -128,15 +129,15 @@ Create a `.env` file in the root directory (or copy from `.env.example`):
 
 ```env
 # Supported Base URLs:
+# - Groq:        https://api.groq.com/openai/v1
 # - NVIDIA NIM:  https://integrate.api.nvidia.com/v1
 # - OpenAI:      https://api.openai.com/v1
-# - Groq:        https://api.groq.com/openai/v1
 # - OpenRouter:  https://openrouter.ai/api/v1
 # - Ollama:      http://localhost:11434/v1
 
-base_url="https://integrate.api.nvidia.com/v1"
-API_KEY="YOUR_API_KEY"
-model="meta/llama-3.1-70b-instruct"
+base_url="https://api.groq.com/openai/v1"
+api_key="YOUR_GROQ_API_KEY"
+model="qwen/qwen3.8-27b"
 ```
 
 If `api_key` (or `API_KEY`) is omitted, both client and server components will automatically use mock fallback handlers.
@@ -145,10 +146,10 @@ If `api_key` (or `API_KEY`) is omitted, both client and server components will a
 
 | Provider | Base URL (`base_url`) | Sample Model (`model`) | Key Env Var |
 |---|---|---|---|
-| **NVIDIA NIM** | `https://integrate.api.nvidia.com/v1` | `meta/llama-3.1-70b-instruct` or `nvidia/nemotron-4-340b-instruct` | `NVIDIA_API_KEY` / `API_KEY` |
-| **OpenAI** | `https://api.openai.com/v1` | `gpt-4o-mini` or `gpt-4o` | `OPENAI_API_KEY` / `API_KEY` |
-| **Groq** | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` | `API_KEY` |
-| **OpenRouter** | `https://openrouter.ai/api/v1` | `meta-llama/llama-3.1-70b-instruct` | `API_KEY` |
+| **Groq** | `https://api.groq.com/openai/v1` | `qwen/qwen3.8-27b` | `api_key` / `API_KEY` |
+| **NVIDIA NIM** | `https://integrate.api.nvidia.com/v1` | `meta/llama-3.1-70b-instruct` | `NVIDIA_API_KEY` / `api_key` |
+| **OpenAI** | `https://api.openai.com/v1` | `gpt-4o-mini` or `gpt-4o` | `OPENAI_API_KEY` / `api_key` |
+| **OpenRouter** | `https://openrouter.ai/api/v1` | `meta-llama/llama-3.1-70b-instruct` | `api_key` |
 | **Ollama (Local)** | `http://localhost:11434/v1` | `llama3` | `ollama` |
 
 ---
@@ -188,25 +189,27 @@ User Request: "What is the weather in Bangalore and what should I wear?"
 [CLIENT AGENT -> SERVER AGENT] Connecting to Response Streaming Endpoint:
    GET http://localhost:8000/jsonrpc/stream/Bangalore
 
-[Stream Notification - Step 1] Initiating JSON-RPC agent query for Bangalore...
-[Stream Notification - Step 2] Executing weather metric tools for Bangalore...
-[Stream Notification - Step 3] Running NVIDIA Nemotron LLM recommendation model...
+[Stream Notification - Step 1] Initiating JSON-RPC agent query for Ramanagara...
+[Stream Notification - Step 2] Executing weather metric tools for Ramanagara...
+[Stream Notification - Step 3] Running LLM recommendation model (qwen/qwen3.8-27b)...
 
 [SERVER AGENT -> CLIENT AGENT] Stream Finished! Final Payload Received:
 {
   "jsonrpc": "2.0",
   "result": {
     "task_status": "COMPLETED",
-    "city": "Bangalore",
+    "city": "Ramanagara",
     "weather_data": {
-      "city": "Bangalore",
-      "temperature": "26°C",
-      "condition": "Partly Cloudy",
-      "humidity": "62%",
-      "wind_speed": "12 km/h"
+      "city": "Rāmanagaram",
+      "country": "India",
+      "temperature": "31.7°C",
+      "condition": "Clear Sky",
+      "humidity": "92%",
+      "wind_speed": "3.1 km/h",
+      "source": "Open-Meteo Live API"
     },
-    "agent_reasoning": "For Bangalore's 26°C weather, lightweight cotton apparel is recommended.",
-    "model_used": "meta/llama-3.1-70b-instruct"
+    "agent_reasoning": "Wear lightweight, breathable fabrics like cotton or linen to stay cool in the warm weather.",
+    "model_used": "qwen/qwen3.8-27b"
   },
   "id": "stream-req-1"
 }
@@ -243,10 +246,10 @@ SERVER AGENT REASONING & AI RECOMMENDATION:
 ```json
 {
   "name": "A2AWeatherAgent",
-  "description": "Agent-to-Agent weather provider powered by JSON-RPC 2.0 & LLM reasoning.",
+  "description": "Agent-to-Agent weather provider powered by JSON-RPC 2.0, Open-Meteo & LLM reasoning.",
   "version": "1.0.0",
   "protocol": "JSON-RPC 2.0",
-  "llm_model": "meta/llama-3.1-70b-instruct",
+  "llm_model": "qwen/qwen3.8-27b",
   "capabilities": {
     "jsonrpc_endpoint": {
       "endpoint": "/jsonrpc",
