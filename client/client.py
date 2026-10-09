@@ -29,7 +29,7 @@ model_name = (
     os.getenv("MODEL")
     or os.getenv("model")
     or os.getenv("LLM_MODEL")
-    or "meta/llama-3.1-70b-instruct"
+    or "qwen/qwen3.8-27b"
 )
 
 # Initialize Client LLM Agent
