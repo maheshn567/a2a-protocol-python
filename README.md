@@ -4,26 +4,6 @@ A Python reference implementation for Agent-to-Agent (A2A) inter-agent communica
 
 ---
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Key Features](#key-features)
-- [Architecture](#architecture)
-- [Project Structure](#project-structure)
-- [Installation & Setup](#installation--setup)
-- [Configuration](#configuration)
-- [Usage](#usage)
-  - [Starting the Server Agent](#starting-the-server-agent)
-  - [Running the Client Agent](#running-the-client-agent)
-- [API Reference](#api-reference)
-  - [Agent Discovery](#agent-discovery-endpoint)
-  - [JSON-RPC Endpoint](#json-rpc-20-endpoint)
-  - [SSE Streaming Endpoint](#sse-progress-streaming-endpoint)
-  - [Registered Methods](#registered-rpc-methods)
-- [Communication Protocol Comparison](#communication-protocol-comparison)
-
----
-
 ## Overview
 
 In multi-agent architectures, agents require structured mechanisms to negotiate capabilities, delegate tasks, and return intermediate status updates. This framework provides an end-to-end working model covering four primary communication primitives:
